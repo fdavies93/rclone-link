@@ -14,23 +14,22 @@ config_top = [{
 }] 
 # list of settings objects
 
-def setup_pipes(config):
+async def setup_pipes(config):
     source = config[0]
     local = source["local"]
 
-    
-    pipe = subprocess.Popen(["inotifywait","--recursive","--monitor","--event", "modify", "--event", "create", "--event", "delete", "--event", "move", "--format", '%w%f', local], stdout=PIPE)
+    pipe = await asyncio.create_subprocess_shell(f"inotifywait --recursive --monitor --event modify --event create --event delete --event move --format '%w%f' {local}", stdout=asyncio.subprocess.PIPE)
+    # pipe = subprocess.Popen(["inotifywait","--recursive","--monitor","--event", "modify", "--event", "create", "--event", "delete", "--event", "move", "--format", '%w%f', local], stdout=PIPE)
     return pipe
 
 async def main():
-    test_pipe = setup_pipes(config_top)
+    test_pipe = await setup_pipes(config_top)
     last_sync = 0
     config = config_top[0]
-    loop = asyncio.get_event_loop()
     while True:
         
         try:
-            ln = test_pipe.stdout.readline()
+            ln = await test_pipe.stdout.readline()
             
             print(ln.decode()[:-1])
 
@@ -38,7 +37,7 @@ async def main():
                 subprocess.run(["rclone", "sync", config["local"], config["remote"], "--verbose"])
                 last_sync = time.time()
         
-        except:
+        except asyncio.TimeoutError:
             # do bisync
             pass
 
