@@ -1,6 +1,7 @@
 from asyncio.subprocess import PIPE
 import time
 import asyncio
+import datetime
 from enum import IntEnum
 
 sources = [{
@@ -35,25 +36,30 @@ async def monitor(config):
     last_sync = 0
     label = config["label"]
     next_wait = config["poll_time"]
-    print(f"[{label}] Watching {config['local']} for changes.")
+    cur_time = time.time()
+    time_label = datetime.datetime.fromtimestamp(cur_time).strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{label} | {time_label}] Watching {config['local']} for changes.")
     while True:
         try:
             ln = await asyncio.wait_for( test_pipe.stdout.readline(), next_wait )
             cur_time = time.time()
+            time_label = datetime.datetime.fromtimestamp(cur_time).strftime("%Y-%m-%d %H:%M:%S")
             if cur_time - last_sync > config["cooldown_time"]:
-                print(f"[{label}] Updating remote {config['remote']} from changed local directory {config['local']}.")
+                print(f"[{label} | {time_label}] Updating remote {config['remote']} from changed local directory {config['local']}.")
                 await asyncio.create_subprocess_shell(f"rclone sync {config['local']} {config['remote']} --quiet")
-                print(f"[{label}] Update complete.")
+                print(f"[{label} | {time_label}] Update complete.")
                 last_sync = time.time()
             else:
                 next_wait = config["cooldown_time"] - (cur_time - last_sync) # wait for cooldown to expire then do a sync
-                print(f"[{label}] Waiting for {round(next_wait, 2)} seconds for cooldown to end.")
+                print(f"[{label} | {time_label}] Waiting for {round(next_wait, 2)} seconds for cooldown to end.")
         
         except asyncio.TimeoutError:
             # do bisync
-            print(f"[{label}] Synchronising local {config['local']} and remote {config['remote']}.")
+            cur_time = time.time()
+            time_label = datetime.datetime.fromtimestamp(cur_time).strftime("%Y-%m-%d %H:%M:%S")
+            print(f"[{label} | {time_label}] Synchronising local {config['local']} and remote {config['remote']}.")
             await asyncio.create_subprocess_shell(f"rclone bisync {config['local']} {config['remote']} --quiet --resync")
-            print(f"[{label}] Sync complete.")
+            print(f"[{label} | {time_label}] Sync complete.")
             next_wait = config["poll_time"]
             last_sync = time.time()
         
